@@ -1,0 +1,62 @@
+---
+- hosts: all
+  strategy: debug
+  become: true
+  vars:
+    workspace: "{{ lookup('env','WORKSPACE') }}"
+  vars_files: ["secrets/{{site_id}}_ssl_cert.yml","secrets/{{site_id}}_ssl_key.yml","secrets/{{site_id}}_dh_param","secrets/ssh_passwords"]
+
+  tasks:
+  - name: Add log format
+    template:
+      src: "templates/nginx-logformat.j2"
+      dest: "/etc/nginx/conf.d/ttpl_nginx_log.conf"
+
+  - name: create Combined Crt
+    file:
+      path="{{ ssl_location }}"
+      state=directory
+
+  - name: Copy Combined Crt
+    copy:
+      dest: "{{ ssl_location }}/{{site_server_name[0]}}.combined_crt"
+      content: "{{ combined_crt }}"
+      force: yes
+
+  - name: Copy rsa key
+    copy:
+      dest: "{{ ssl_location }}/{{site_server_name[0]}}.key"
+      content: "{{ rsa_key }}"
+      force: yes
+
+  - name: Copy dh param
+    copy:
+      dest: "{{ ssl_location }}/dhparam.pem"
+      content: "{{ ssl_dhparam }}"
+      force: yes
+
+  - name: Create status stub path
+    template:
+      src: "templates/nginx-status.j2"
+      dest: "{{ nginx_vhost_path }}/default.conf"
+
+  - name: Create NGINX vhost
+    template:
+      src: "templates/nginx-primary.j2"
+      dest: "{{ nginx_vhost_path }}/{{site_id}}.conf"
+
+  - name: Create NGINX vhost config directory
+    file: path="{{ nginx_vhost_path }}/{{site_id}}.d" state=directory
+
+  - name: Create NGINX vhost config
+    template:
+      src: "templates/nginx-secondary-{{site_id}}.j2"
+      dest: "{{ nginx_vhost_path }}/{{site_id}}.d/main.conf"
+
+  - name: Create Logrotate for Nginx Logs
+    template:
+      src: "templates/ek-logrotate.js"
+      dest: "{{ logrotate_path }}/ek-logrotate"
+
+  - name: Restart NGINX
+    service: name=nginx state=restarted

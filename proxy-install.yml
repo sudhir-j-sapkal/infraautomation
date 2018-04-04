@@ -1,0 +1,8 @@
+---
+- hosts: all
+
+  become: true
+  vars_files: ["secrets/ssh_passwords"]
+
+  roles:
+    - { role: geerlingguy.nginx }

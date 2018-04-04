@@ -1,0 +1,195 @@
+---
+- hosts: all
+  become: true
+  vars:
+    workspace: "{{ lookup('env','WORKSPACE') }}"
+  vars_files: ["secrets/{{site_id}}","secrets/ssh_passwords"]
+  tasks:
+  - name: Create configuration.php
+    template:
+      src: "{{ config_src }}"
+      dest: "{{ doc_root }}/configuration.php"
+      owner: "{{ server_runs_as }}"
+      group: "{{ server_runs_as_group }}"
+
+  - name: Create .htversion file
+    file:
+      path: "{{ doc_root }}/.htversion"
+      state: touch
+      owner: "{{ server_runs_as }}"
+      group: "{{ server_runs_as_group }}"
+
+  - name: Write commit number .htversion to file
+    shell: echo "{{ lookup('env','BUILD_NUMBER') }}" > {{ doc_root }}/.htversion
+
+  - name: "Delete folders"
+    file: path="{{ doc_root }}/{{ item }}" state=absent force=yes owner="{{server_runs_as}}" group="{{server_runs_as_group}}"
+    with_items:
+      - "cache"
+      - "tmp"
+      - "logs"
+      - "administrator"
+      - "components"
+      - "modules"
+      - "plugins"
+      - "templates"
+      - "language"
+      - "libraries"
+      - "includes"
+      - "index.php"
+
+  - name: "Create empty dirs"
+    file: path="{{ doc_root }}/{{ item }}" state=directory force=yes owner="{{server_runs_as}}" group="{{server_runs_as_group}}"
+    with_items:
+      - "cache"
+      - "tmp"
+      - "logs"
+      - "administrator"
+      - "administrator/cache"
+
+  - name: create empty index.html files
+    file: path="{{ doc_root }}/{{ item }}/index.html" state=touch owner="{{server_runs_as}}" group="{{server_runs_as_group}}"
+    with_items:
+      - "cache"
+      - "tmp"
+      - "logs"
+      - "administrator/cache"
+
+  - name: Unarchive artifact on remote server
+    unarchive:
+      src: "{{ workspace | default('') }}/{{ artifact_filename }}"
+      dest: "{{ doc_root }}"
+      copy: yes
+      owner: "{{ server_runs_as }}"
+      group: "{{ server_runs_as_group }}"
+
+  - name: Create all wget cronjobs
+    become: false
+    tags: cron
+    cron:
+      name: "{{item.name}}"
+      minute: "*/5"
+      job: "/usr/bin/wget --no-check-certificate -qO- '{{item.url}}' &> /dev/null"
+    with_items :
+    - {
+    name: "PiP Create Easy social group notification",
+    url: "https://{{ deploy_env_domain }}/index.php?option=com_easysocial&cron=true&phrase={{easy_social_phrase}}"
+    }
+    - {
+      name: "PiP Create Easy social Profile",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=easysocial"
+    }
+    - {
+      name: "PiP Pioneer Education UCM 2017",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=education_pioneer_2017&client=tjucm"
+    }
+    - {
+      name: "PiP Pioneer Education UCM 2018",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=education_pioneer_2018&client=tjucm"
+    }
+    - {
+      name: "PiP Host Organisation 2017",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=hostorganizationinformation_host_2017&client=tjucm"
+    }
+    - {
+      name: "PiP Host Organisation 2018",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=hostorganizationinformation_host_2018&client=tjucm"
+    }
+    - {
+      name: "PiP Pioneer Programme 2017",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=PioneersProgramme_pioneer_2017&client=tjucm"
+    }
+    - {
+      name: "PiP Pioneer Preference Programme 2017",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=hostpioneerpreference_host_2017&client=tjucm"
+    }
+    - {
+      name: "PiP Pioneer Preference 2017",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=hostpioneerpreference_host_2018&client=tjucm"
+    }
+    - {
+      name: "PiP Pioneer Programme 2018",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=PioneersProgramme_pioneer_2018&client=tjucm"
+    }
+    - {
+      name: "PiP Pioneer Term Condition 2017",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=termcondition_pioneer_2017&client=tjucm"
+    }
+    - {
+      name: "PiP Host Term Condition 2017",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=hosttermandcondition_host_2017&client=tjucm"
+    }
+    - {
+      name: "PiP Host Term Condition 2018",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=hosttermandcondition_host_2018&client=tjucm"
+    }
+    - {
+      name: "PiP Pioneer Term Condition 2018",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=termcondition_pioneer_2018&client=tjucm"
+    }
+    - {
+      name: "PiP Pioneer Host work exp 2017",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=workexperience_pioneer_2017&client=tjucm"
+    }
+    - {
+      name: "PiP Pioneer Work Experience 2017",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=hostworkexperience_host_2017&client=tjucm"
+    }
+    - {
+      name: "PiP Host Work Experience 2018",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=workexperience_pioneer_2018&client=tjucm"
+    }
+    - {
+      name: "PiP Host Placements 2017",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=placement_host_2017&client=tjucm_multivalue"
+    }
+    - {
+      name: "PiP Host Placements 2018",
+      url: "https://{{ deploy_env_domain }}/index.php?option=com_advsearch&task=cronjob&pkey=abcd1234&type=placement_host_2018&client=tjucm_multivalue"
+    }
+
+  - name: Create cli cronjobs for akeeba back-up PiP Site
+    become: false
+    tags: cron
+    when: (deploy_env == "prod-pip")
+    cron:
+      name: "{{item.name}}"
+      minute: "{{item.minute}}"
+      hour: "{{item.hour}}"
+      job: "/usr/bin/php5.6 {{item.url}} &> /dev/null"
+    with_items :
+    - {
+      name: "Create Akeeba Backup of Full Site",
+      url: "{{sites_container}}/{{deploy_env_domain}}/public/cli/akeeba-backup.php --profile=3",
+      minute: "30",
+      hour: "0"
+    }
+    - {
+      name: "Create Akeeba Backup for Only DB profile",
+      url: "{{sites_container}}/{{deploy_env_domain}}/public/cli/akeeba-backup.php --profile=2",
+      minute: "0",
+      hour: "5,13,21"
+    }
+
+  - name: Create cli cronjobs for akeeba back-up GreenHouse
+    become: false
+    tags: cron
+    when: (deploy_env == "prod-greenhouse")
+    cron:
+      name: "{{item.name}}"
+      minute: "{{item.minute}}"
+      hour: "{{item.hour}}"
+      job: "/usr/bin/php5.6 {{item.url}} &> /dev/null"
+    with_items :
+    - {
+      name: "Create Akeeba Backup of Full Site",
+      url: "{{sites_container}}/{{deploy_env_domain}}/public/cli/akeeba-backup.php --profile=4",
+      minute: "30",
+      hour: "1"
+    }
+    - {
+      name: "Create Akeeba Backup for Only DB profile",
+      url: "{{sites_container}}/{{deploy_env_domain}}/public/cli/akeeba-backup.php --profile=2",
+      minute: "30",
+      hour: "5,13,21"
+    }

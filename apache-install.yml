@@ -1,0 +1,35 @@
+---
+- hosts: all
+
+  become: true
+  vars_files: ["secrets/ssh_passwords"]
+
+  pre_tasks:
+  - name: Add ondrej PHP repositories
+    apt_repository: repo='ppa:ondrej/php' state=present
+
+  - name: Add ondrej Apache repositories
+    apt_repository: repo='ppa:ondrej/apache2' state=present
+
+  roles:
+    - { role: geerlingguy.apache }
+    - { role: geerlingguy.php }
+    - { role: geerlingguy.apache-php-fpm }
+
+  tasks:
+  - name: Remove default Apache vhosts file
+    file:
+      name: "/etc/apache2/sites-enabled/vhosts.conf"
+      state: absent
+
+  - name: Remove default Apache 000-default file
+    file:
+      name: "/etc/apache2/sites-enabled/000-default.conf"
+      state: absent
+
+  - name: Remove default FPM Pool
+    file:
+      name: "/etc/php/{{item}}/fpm/pool.d/www.conf"
+      state: absent
+    with_items:
+    - "7.0"

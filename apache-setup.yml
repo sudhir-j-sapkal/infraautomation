@@ -1,0 +1,91 @@
+---
+- hosts: all
+  become: true
+  vars:
+    workspace: "{{ lookup('env','WORKSPACE') }}"
+  vars_files: ["secrets/ssh_passwords"]
+  tasks:
+  - name: Create site directory
+    file:
+      path: "{{sites_container}}/{{site_server_name[0]}}"
+      state: directory
+      owner: "{{ server_runs_as }}"
+      group: "{{ server_runs_as_group }}"
+
+  - name: Create log directory
+    file:
+      path: "{{sites_container}}/{{site_server_name[0]}}/logs"
+      state: directory
+      owner: "{{ server_runs_as }}"
+      group: "{{ server_runs_as_group }}"
+
+  - name: Create tmp directory
+    file:
+      path: "{{sites_container}}/{{site_server_name[0]}}/tmp"
+      state: directory
+      owner: "{{ server_runs_as }}"
+      group: "{{ server_runs_as_group }}"
+
+  - name: Create run directory
+    file:
+      path: "{{sites_container}}/{{site_server_name[0]}}/run"
+      state: directory
+      owner: "{{ server_runs_as }}"
+      group: "{{ server_runs_as_group }}"
+
+  - name: Create public directory
+    file:
+      path: "{{sites_container}}/{{site_server_name[0]}}/public"
+      state: directory
+      owner: "{{ server_runs_as }}"
+      group: "{{ server_runs_as_group }}"
+
+      #  - name: Create Welcome file
+      #template:
+      #src: "templates/welcome.j2"
+      #dest: "{{ sites_container }}/{{ site_server_name[0] }}/public/index.php"
+      #owner: "{{ server_runs_as }}"
+      #group: "{{ server_runs_as_group }}"
+      #tags: welcome
+
+  - name: Create FPM pool
+    template:
+      src: "templates/fpm-primary.j2"
+      dest: "/etc/php/{{php_install_version}}/fpm/pool.d/{{site_id}}.conf"
+
+  - name: Create FPM pool config directory
+    file: path="/etc/php/{{php_install_version}}/fpm/pool.d/{{site_id}}.d" state=directory
+
+  - name: Create FPM pool config
+    template:
+      src: "templates/fpm-secondary.j2"
+      dest: "/etc/php/{{php_install_version}}/fpm/pool.d/{{site_id}}.d/main.conf"
+
+  - name: Create Apache vhost
+    template:
+      src: "templates/apache-primary.j2"
+      dest: "/etc/apache2/sites-enabled/{{site_id | mandatory}}.conf"
+
+  - name: Create Apache vhost config directory
+    file: path="/etc/apache2/sites-enabled/{{site_id | mandatory}}.d" state=directory
+
+  - name: Create Apache vhost config
+    template:
+      src: "templates/apache-secondary.j2"
+      dest: "/etc/apache2/sites-enabled/{{site_id}}.d/main.conf"
+
+  - name: Enable header Module
+    apache2_module: state=present name=headers
+
+  - name: Restart Apache
+    service: name=apache2 state=restarted
+    become: true
+
+  - name: Restart FPM
+    command: "{{fpm_init_script}} restart"
+    become: true
+
+  - name: Create Logrotate for Application Logs
+    template:
+      src: "templates/ek-logrotate.js"
+      dest: "{{ logrotate_path }}/ek-logrotate"
